@@ -20,9 +20,14 @@ command or plate.
 | `examples/` | a real statement from https://in.xchk.io, its receipt bundle and the registry's key document |
 | `tests/` | `python -m pytest tests` (needs `pytest`; `dilithium-py` for the hybrid receipt checks) |
 
-Try it:
+Try it. The receipt is hybrid-signed (Ed25519 + ML-DSA-65), so `verify_receipt.py --require-approval` needs
+`dilithium-py`; without it the checker refuses with exit 3 rather than pass half-checked. `verify_statement.py`
+needs nothing beyond Python 3.
 
 ```bash
+git clone https://github.com/minitru/xchk-scitt && cd xchk-scitt
+python3 -m venv .venv && . .venv/bin/activate && pip install dilithium-py
+python3 verify_receipt.py examples/xchk-receipt-aa2bfd5b1d9b.json --require-approval --keys examples/in.xchk.io-xchk-keys.json
 python3 verify_statement.py examples/xchk-scitt-aa2bfd5b1d9b.cose --bundle examples/xchk-receipt-aa2bfd5b1d9b.json --keys examples/in.xchk.io-xchk-keys.json
 ```
 
