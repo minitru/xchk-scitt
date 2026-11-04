@@ -1,0 +1,12 @@
+# 4 Nov 2026. Extends the default rules.
+[extend]
+useDefault = true
+
+[[allowlists]]
+# Receipt bundles carry each record's authRef, a public 24-hex ledger reference printed on every receipt; gitleaks'
+# generic-api-key rule matches it by shape. Not a key. Only the receipt bundles are excused.
+description = "public authRef ledger references in receipt bundles"
+paths = [
+  '''^examples/xchk-receipt-[0-9a-f]+\.json$''',
+  '''^tests/fixtures/[0-9a-z-]+\.bundle\.json$''',
+]

@@ -1,0 +1,15 @@
+xchk-scitt: the xChk SCITT signed-statement format and its offline checker. MIT, copyright (c) 2026 Sean MacGuire.
+
+Source of truth: the xChk registry's own verify/ directory, served at https://in.xchk.io/verify/. This repository is
+a copy of README.md (= SCITT.md), verify_statement.py and verify_receipt.py; a change is made there first.
+
+examples/: a statement, its receipt bundle and the registry's key document, downloaded from https://in.xchk.io on
+4 November 2026 for record aa2bfd5b… (plate ENG-WNP3, an approved terminal command, 17 October 2026), signed by the
+registry's own key.
+
+tests/fixtures/: the receipt bundles 01 and 03 are the same public records published in
+agentrust-io/integrations (integrations/xchk-registry/examples/approval-outcome/). The statement fixture is signed by
+a throwaway Ed25519 key; its public half is in 01-approval-confirmed.statement-keys.json and the private half was
+discarded.
+
+The records carry the plate owner's identifiers; he chose to publish them.

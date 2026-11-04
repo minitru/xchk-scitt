@@ -1,0 +1,16 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest dilithium-py
+      - run: python -m pytest -q tests
+      - name: the live example from the command line
+        run: python verify_statement.py examples/xchk-scitt-aa2bfd5b1d9b.cose --bundle examples/xchk-receipt-aa2bfd5b1d9b.json --keys examples/in.xchk.io-xchk-keys.json

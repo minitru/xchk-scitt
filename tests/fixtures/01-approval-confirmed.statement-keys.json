@@ -1,0 +1,12 @@
+{
+  "note": "4 Nov 2026: a throwaway Ed25519 key generated to sign the SCITT statement fixture beside this file; the private half was discarded, it signs nothing else, and the registry never held it.",
+  "keys": [
+    {
+      "alg": "ed25519",
+      "keyId": "127ccb9b4e6bdd22",
+      "publicKeyRaw": "XYdDn8J3RBX8cuc7RqWvlyh7UUHVLbZHUVuq6vCfVXI="
+    }
+  ],
+  "retired": [],
+  "revoked": []
+}
