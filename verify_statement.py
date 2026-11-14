@@ -138,6 +138,22 @@ def candidate_keys(kid: str, keys_doc, bundle):
     return found
 
 
+def revoked_by_id(kid: str, keys_doc) -> list:
+    """Every entry of the key document that revokes the Ed25519 key with this keyId, however the document says it (in
+    `revoked`, or carrying revokedAt, or a status that is neither active nor retired), with or without its public key.
+    9 Nov 2026 (private review of agentrust-io/integrations#350): candidate_keys drops an entry published without its
+    raw key, so a revocation listed beside a still-active entry was invisible and the active key signed."""
+    if not keys_doc:
+        return []
+    out = []
+    for status in ("keys", "retired", "revoked"):
+        for k in keys_doc.get(status, []):
+            if k.get("alg") == "ed25519" and k.get("keyId") == kid and (
+                    status == "revoked" or k.get("revokedAt") or k.get("status") not in (None, "active", "retired")):
+                out.append(k)
+    return out
+
+
 def verify(path: str, bundle_path=None, keys_path=None) -> dict:
     checks = []
 
@@ -199,9 +215,11 @@ def verify(path: str, bundle_path=None, keys_path=None) -> dict:
     if not check(cands, "a key with this keyId is available (from --keys or the bundle)"):
         pass
     else:
-        check(not any(s == "revoked" for _, s, _ in cands), "the key is not revoked")
+        rv = revoked_by_id(kid, keys_doc)
+        check(not any(s == "revoked" for _, s, _ in cands) and not rv, "the key is not revoked"
+              + (f" (the key document revokes {kid}" + (" and ALSO lists it as active: it contradicts itself)" if any(s != "revoked" for src, s, _ in cands if src == "--keys") else ")") if rv else ""))
         tbs = sig_structure(prot_bytes, payload)
-        good = [src for src, s, pub in cands if s != "revoked" and ed25519_verify(pub, tbs, sig)]
+        good = [src for src, s, pub in cands if s != "revoked" and not rv and ed25519_verify(pub, tbs, sig)]
         check(good, "Ed25519 signature over the Sig_structure verifies" + (f" (key from {good[0]})" if good else ""))
 
     if bundle is not None:

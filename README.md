@@ -11,26 +11,6 @@ The statement is **hash only**. Its payload is the 32-byte record hash. The reco
 stays in the receipt bundle that the statement points to. A log that holds the statement holds no name, email, photo,
 command or plate.
 
-## This repository
-
-| | |
-|---|---|
-| `verify_statement.py` | the offline checker for a statement (standard library only) |
-| `verify_receipt.py` | the offline checker for a receipt bundle; `verify_statement.py` uses its Ed25519 and canonical JSON |
-| `examples/` | a real statement from https://in.xchk.io, its receipt bundle and the registry's key document |
-| `tests/` | `python -m pytest tests` (needs `pytest`; `dilithium-py` for the hybrid receipt checks) |
-
-Try it. The receipt is hybrid-signed (Ed25519 + ML-DSA-65), so `verify_receipt.py --require-approval` needs
-`dilithium-py`; without it the checker refuses with exit 3 rather than pass half-checked. `verify_statement.py`
-needs nothing beyond Python 3.
-
-```bash
-git clone https://github.com/minitru/xchk-scitt && cd xchk-scitt
-python3 -m venv .venv && . .venv/bin/activate && pip install dilithium-py
-python3 verify_receipt.py examples/xchk-receipt-aa2bfd5b1d9b.json --require-approval --keys examples/in.xchk.io-xchk-keys.json
-python3 verify_statement.py examples/xchk-scitt-aa2bfd5b1d9b.cose --bundle examples/xchk-receipt-aa2bfd5b1d9b.json --keys examples/in.xchk.io-xchk-keys.json
-```
-
 ## Where to get one
 
 | | |
@@ -39,6 +19,7 @@ python3 verify_statement.py examples/xchk-scitt-aa2bfd5b1d9b.cose --bundle examp
 | Statement | `GET https://<registry>/api/receipt/<record hash>/statement.cose` (`application/cose; cose-type="cose-sign1"`; 409 for a record that is not an approved act) |
 | Receipt bundle (the preimage and its proofs) | `GET https://<registry>/api/receipt/<record hash>/bundle` |
 | Registry keys | `https://<registry>/.well-known/xchk-keys.json` |
+| Key history (9 Nov 2026) | `https://<registry>/.well-known/xchk-key-log.json` — every signing set ever published, chained and pre-committed; [KEY-LOG.md](./KEY-LOG.md), `verify_key_log.py` |
 
 ## The bytes
 
@@ -96,6 +77,12 @@ python3 verify_receipt.py xchk-receipt-<hash>.json --require-approval --keys xch
 A system that refers to an xChk approval, for example an agent action record in another log, should refer to it by
 the **record hash** (the statement's payload and `sub`), not by the hash of the bundle file. The record hash is fixed
 when the record is sealed; a bundle is re-served and its bytes can differ between fetches.
+
+## Reproduced outside xChk
+
+Anton Sokolov, Tyche Institute (Tallinn) reproduced the receipt verification with code of his own on 13 November 2026:
+the hashes recompute, the signatures check, tampered copies are refused. He is credited here with his agreement.
+A verifier that only xChk has run proves little; this one has now been run by someone we do not control.
 
 ## Where this lives
 
