@@ -1,0 +1,72 @@
+{
+  "about": "What a receipt of each kind proves when it verifies, and what it never proves (16 Nov 2026). Fixed text, one entry per record disposition: the verifiers (verify_receipt.py, verify-portfolio.cjs) and the receipt page read this file and never word it themselves. `proves` holds only when the verifier's exit is 0; a receipt that does not verify proves nothing. `common` applies to every kind; `withoutKeys` is added when no --keys document was supplied. A change of wording here is a change of what xChk claims: date it in verify/CHANGELOG.md.",
+  "version": 1,
+  "common": {
+    "proves": [
+      "The registry wrote this record at this place in the plate's hash chain and sealed it; not one byte of the record has changed since the seal was signed.",
+      "The registry's signatures over the seal verify, each with the key it names; a signature this run could not check is a WAIT step above, never part of this statement."
+    ],
+    "neverProves": [
+      "That the record's summary is a complete or truthful description of what the agent did; it is the description the gate sent.",
+      "That nothing else happened: one receipt says nothing about actions the registry never saw. Completeness is the plate's coverage evidence (the local chain reconciled against the ledger), not any single receipt."
+    ]
+  },
+  "withoutKeys": {
+    "neverProves": [
+      "That the signing keys are the registry's. Without the registry's key document (--keys) the signatures were checked against keys the bundle itself carries, and a bundle re-signed under someone else's keys passes."
+    ]
+  },
+  "kinds": {
+    "allow": {
+      "label": "Allowed by the plate's grant",
+      "proves": ["The registry allowed this action under the plate's grant as it stood at the record's time."],
+      "neverProves": ["That any person looked at it: an allow is the grant's answer, not a person's.", "That the action ran, or what it did; an outcome record, when there is one, is the host's own report."]
+    },
+    "attest": {
+      "label": "Held for a person",
+      "proves": ["The registry held this action for a person's answer and recorded why."],
+      "neverProves": ["That anyone answered, or what they said: the answer is its own record (approved, denied or expired), cited by the attestation id."]
+    },
+    "forbid": {
+      "label": "Refused",
+      "proves": ["The registry refused this action and recorded the refusal and its stated reason."],
+      "neverProves": ["That the agent did not do it some other way, on a host or path no gate covers; that is what the coverage evidence is for."]
+    },
+    "approved": {
+      "label": "Approved by a person",
+      "proves": [
+        "A person answered yes, and the registry recorded the answer.",
+        "With an approver block that verifies: the answer was given with a passkey the registry bound to that person's identity for this record, and, under the ask-v1 rule, the device signed over this ask's text and the digest of this action."
+      ],
+      "neverProves": [
+        "That the person's own signature covers the word yes: the device signs the ask; the answer rests on the registry's seal beside it.",
+        "That the person understood the action, or that the action ran as asked.",
+        "For an approval with changes: that the person signed the changed command; the amendment rests on the registry's seal."
+      ]
+    },
+    "denied": {
+      "label": "Refused by a person",
+      "proves": ["A person answered no to this ask, and the registry recorded and sealed the refusal under that person's name."],
+      "neverProves": [
+        "That a passkey was used for the no unless the record's authMethod says so; a refusal does not need one.",
+        "That the person's own signature covers the word no: where a passkey was used, the device signed the ask, not the answer.",
+        "That the agent did not do it some other way, on a host or path no gate covers."
+      ]
+    },
+    "expired": {
+      "label": "Nobody answered",
+      "proves": ["The ask was raised, the deadline passed with no answer, and the registry recorded who was asked and whose silence it was (the record's code)."],
+      "neverProves": ["That the person saw the ask: the code says whether it was delivered.", "A refusal: silence is not a no, and the record never names it one."]
+    },
+    "outcome": {
+      "label": "How it ended (the host's report)",
+      "proves": ["The host reported this result for the cited decision, and the registry sealed the report as given."],
+      "neverProves": ["That the effect happened: an outcome is self-reported by the host, evidence for recovery, not proof of effect."]
+    }
+  },
+  "portfolio": {
+    "label": "Login with xChk portfolio block",
+    "proves": ["The registry signed this portfolio block, with every signature the block claims, as it stood when the token was issued."],
+    "neverProves": ["That the person is still verified, or that the plates listed are still licensed, now; ask the registry for current state.", "Anything about the agent's actions: the portfolio is who the person is, not what any plate did."]
+  }
+}

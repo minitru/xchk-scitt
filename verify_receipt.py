@@ -647,6 +647,46 @@ def ots_attestations(proof: bytes, digest: bytes) -> list:
     return out
 
 
+# ----------------------------------------------------------------------------------------------------- statement
+
+STATEMENTS_FILE = "receipt-statements.json"   # 16 Nov 2026: beside this script; the one home of the wording
+
+
+def receipt_statement(kind, keys_supplied: bool, holds: bool, here: Optional[str] = None):
+    """What a receipt of this kind proves when it verifies, and what it never proves (16 Nov 2026), read from
+    receipt-statements.json beside this script. Fixed text per record disposition; `holds` is true only on exit 0
+    (a receipt that does not verify proves nothing). Informational: it never changes the verdict. None when the file
+    is not beside the script (a copy that left it behind) or names no such kind."""
+    import os
+    try:
+        with open(os.path.join(here or os.path.dirname(os.path.abspath(__file__)), STATEMENTS_FILE), encoding="utf-8") as f:
+            table = json.load(f)
+    except (OSError, ValueError):
+        return None
+    entry = (table.get("kinds") or {}).get(kind) if isinstance(kind, str) else None
+    if not isinstance(entry, dict):
+        return None
+    common = table.get("common") or {}
+    never = list(common.get("neverProves") or []) + list(entry.get("neverProves") or [])
+    if not keys_supplied:
+        never += list((table.get("withoutKeys") or {}).get("neverProves") or [])
+    return {"kind": kind, "label": entry.get("label"), "holds": bool(holds), "version": table.get("version"),
+            "proves": list(common.get("proves") or []) + list(entry.get("proves") or []), "neverProves": never}
+
+
+def print_statement(st) -> None:
+    if not st:
+        print("\n(no proves / does-not-prove statement: receipt-statements.json is not beside this script)")
+        return
+    print(f"\nWHAT THIS RECEIPT PROVES ({st['label']})" + ("" if st["holds"] else " — it does not verify, so: nothing"))
+    if st["holds"]:
+        for line in st["proves"]:
+            print("  + " + line)
+    print("WHAT IT NEVER PROVES")
+    for line in st["neverProves"]:
+        print("  - " + line)
+
+
 def main(path: str, artifact_path: Optional[str] = None, require_approval: bool = False, keys_path: Optional[str] = None) -> int:
     """Human-readable run; the exit code is the verdict (0 verifies, 1 a check failed, 2 unreadable, 3 strict mode and
     the approval evidence is missing). verify() returns the same code with a structured report (--json)."""
@@ -659,9 +699,14 @@ def verify(path: str, artifact_path: Optional[str] = None, require_approval: boo
     traceback and never a pass (19 Oct 2026: a type-mutation sweep over every field found 35 crashing lines; the
     field-removal sweep had covered only absence). `pending` is null when the run stopped on such a bundle."""
     report = {"result": None, "exit": None, "failed": 0, "pending": 0, "approvalEvidenceMissing": [], "sealChainMissing": [],
-              "boundIdentity": None, "amendment": None, "withheld": [], "keyDocument": None, "checks": []}
+              "boundIdentity": None, "amendment": None, "withheld": [], "keyDocument": None, "statement": None, "checks": []}
     try:
-        return _verify(path, artifact_path, require_approval, report, keys_path)
+        code, report = _verify(path, artifact_path, require_approval, report, keys_path)
+        if code != 2:   # 16 Nov 2026: an unreadable bundle has no kind to state
+            report["statement"] = receipt_statement(report.pop("kind", None), keys_path is not None, code == 0)
+            print_statement(report["statement"])
+        report.pop("kind", None)
+        return code, report
     except (KeyError, TypeError, AttributeError, ValueError, IndexError, OverflowError) as exc:
         text = f"the bundle is malformed ({type(exc).__name__}: {str(exc)[:160]}); it cannot be what the registry issued"
         print("  FAIL " + text)
@@ -669,6 +714,8 @@ def verify(path: str, artifact_path: Optional[str] = None, require_approval: boo
         failed = sum(1 for c in report["checks"] if c["status"] == "FAIL")
         print(f"\nRESULT: does NOT verify ({failed} check(s) failed)")
         report.update(exit=1, result="fails", failed=failed, pending=None, boundIdentity=None, amendment=None, withheld=["boundIdentity", "amendment"])
+        report["statement"] = receipt_statement(report.pop("kind", None), keys_path is not None, False)
+        print_statement(report["statement"])
         return 1, report
 
 
@@ -731,6 +778,7 @@ def _verify(path, artifact_path, require_approval, report, keys_path=None):
             failed += 1
 
     rec = b.get("record") or {}
+    report["kind"] = rec.get("disposition") if isinstance(rec, dict) else None   # for the statement (16 Nov 2026)
     print(f"xChk receipt {b.get('recordHash')}  ({b.get('format')})")
     print(f"  {b.get('issuer', {}).get('headline', '')}")
 
@@ -866,7 +914,7 @@ def _verify(path, artifact_path, require_approval, report, keys_path=None):
         bd = ap.get("binding") or {}
         if (bd.get("signature") or bd.get("signatures")) and keys and bd.get("fields"):
             f = bd["fields"]
-            pending += registry_verify(ok, bd, canonical(f).encode("utf-8"), keys, f"identity binding: credential ↔ {f.get('approverEmail')} (level {f.get('authLevel')})", binding_required(f, required), approval_evidence_missing)
+            pending += registry_verify(ok, bd, canonical(f).encode("utf-8"), keys, f"identity binding: credential ↔ {f.get('approverEmail') or ('approver ' + str(f.get('approverRef') or '—')[:12] + '…')} (level {f.get('authLevel')})", binding_required(f, required), approval_evidence_missing)
             ok(f.get("recordHash") == b.get("recordHash"), "binding names this record hash")
             ok(f.get("credentialId") == ap.get("credentialId"), "binding names the credential that signed the assertion")
             # 17 Oct 2026: the key the assertion was checked with must be the key the registry bound to that credential,
@@ -875,7 +923,23 @@ def _verify(path, artifact_path, require_approval, report, keys_path=None):
             ok(f.get("publicKey") == pk.get("raw"), "binding names the public key the assertion was checked with")
             # 19 Oct 2026 (GHSA-w2fx-3qmx-rx85, finding 3): the person the registry bound to this record (who answered, or for an
             # expired ask who was asked) and their proofing are reported ONLY from the registry-signed binding; the readable approver.email/authLevel/authMethod beside it are not evidence.
-            report["boundIdentity"] = {"email": f.get("approverEmail"), "authLevel": f.get("authLevel"),
+            # 25 Nov 2026: a binding from this date signs a salted commitment to the approver's address (approverCommit) in
+            # place of the address, and the reference (approverRef). A copy given to the plate's holder carries
+            # approver.opening {email, salt}; the address is reported ONLY when it opens the commitment. A copy without an
+            # opening names nobody by address, and a failed opening fails the receipt: it is someone else's address.
+            opened = None
+            op = ap.get("opening") or None
+            if f.get("approverCommit"):
+                if op:
+                    want = hashlib.sha256((str(op.get("salt") or "") + "|" + str(op.get("email") or "").lower()).encode("utf-8")).hexdigest()
+                    good = bool(op.get("salt")) and bool(op.get("email")) and want == f.get("approverCommit")
+                    ok(good, "the address given to the plate's holder opens the binding's commitment (sha256 over salt|address)")
+                    opened = str(op.get("email")).lower() if good else None
+                else:
+                    print("  ..   this copy names the approver by reference only; the address is given to the plate's holder, with what opens the signed commitment")
+            elif op:
+                ok(False, "an opening is offered beside a binding that carries no commitment to open")
+            report["boundIdentity"] = {"email": f.get("approverEmail") or opened, "ref": f.get("approverRef"), "authLevel": f.get("authLevel"),
                                   "authMethod": f.get("authMethod"), "source": "approver.binding.fields (registry-signed)"}
             outer = (ap.get("email"), ap.get("authLevel"), ap.get("authMethod"))
             if outer != (f.get("approverEmail"), f.get("authLevel"), f.get("authMethod")):
