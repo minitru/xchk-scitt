@@ -72,6 +72,30 @@ and the person's signed answer), run `verify_receipt.py` on the bundle:
 python3 verify_receipt.py xchk-receipt-<hash>.json --require-approval --keys xchk-keys.json
 ```
 
+## A statement over a file: the install script (28 Nov 2026)
+
+The registry signs the same statement over the bytes of the install script it serves, so that an agent or a person can
+run what they read and know whose it is:
+
+- `sub` is `urn:xchk:install:<sha256 of the file, hex>`; the payload is those 32 bytes.
+- `preimage content type` is `text/x-shellscript`; `payload_location` is where the registry serves the file
+  (`<registry>/api/install`). `iat` is when that registry's copy was laid down.
+- Get it at `<registry>/api/install.cose`, beside `<registry>/api/install.sha256` (one line, in the form
+  `shasum -a 256 -c` reads).
+
+```bash
+curl -fsSL -o xchk-install.sh   https://in.xchk.io/api/install
+curl -fsSL -o xchk-install.cose https://in.xchk.io/api/install.cose
+curl -fsSL -o xchk-keys.json    https://in.xchk.io/.well-known/xchk-keys.json
+python3 verify_statement.py xchk-install.cose --file xchk-install.sh --keys xchk-keys.json
+bash xchk-install.sh claude        # the file that was checked, not a second download
+```
+
+With `--file` the checker requires the `urn:xchk:install:` subject and that the payload equals the SHA-256 of the
+file's bytes as they are on disk. A record's statement is refused with `--file`, and a file's statement is refused
+without it. It takes no `--bundle`. It says whose the file is and that these are the bytes. It does not say the file
+is safe: read it.
+
 ## Using it as evidence elsewhere
 
 A system that refers to an xChk approval, for example an agent action record in another log, should refer to it by

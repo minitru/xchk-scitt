@@ -2,6 +2,7 @@
 """Verify an xChk SCITT signed statement with no network. Standard library only; uses verify_receipt.py beside it.
 
 Usage:  python3 verify_statement.py xchk-scitt-<hash>.cose [--bundle xchk-receipt-<hash>.json] [--keys xchk-keys.json] [--json]
+        python3 verify_statement.py xchk-install.cose --file xchk-install.sh --keys xchk-keys.json [--json]
 
 The statement (4 Nov 2026) is a COSE_Sign1 (RFC 9052) that the xChk registry signs over ONE approved action record's
 hash, for anyone to register in the SCITT transparency service they trust. Format: SCITT.md beside this file.
@@ -21,6 +22,12 @@ What is checked:
   5. with --bundle: the payload equals the bundle's recordHash AND sha256(canonical(bundle.record)), so the
      statement names exactly that record. Run verify_receipt.py on the bundle for the record's own proof (seal,
      Merkle path, anchors, the person's signed answer); this file proves only the statement.
+
+With --file (28 Nov 2026) the statement is one the registry signs over a FILE it serves, today its install script, so
+that what is run is what was read and a script swapped on the web server without the registry's key fails:
+  2'. sub = urn:xchk:install:<payload hex> (a record's statement is refused here, and a file's is refused without --file);
+  5'. the payload equals sha256 of the file's bytes, exactly as they are on disk.
+It says whose the file is and that these are the bytes. It does not say the file is safe: read it.
 
 Exit 0 when every check passes, 1 when any fails, 2 on a usage error. Unprotected headers are reported, not judged: a
 transparency service adds its receipt there after registration.
@@ -154,7 +161,7 @@ def revoked_by_id(kid: str, keys_doc) -> list:
     return out
 
 
-def verify(path: str, bundle_path=None, keys_path=None) -> dict:
+def verify(path: str, bundle_path=None, keys_path=None, file_path=None) -> dict:
     checks = []
 
     def check(ok, what):
@@ -194,7 +201,10 @@ def verify(path: str, bundle_path=None, keys_path=None) -> dict:
     cwt_ok = check(isinstance(cwt, dict), "CWT claims (15) are in the protected header")
     if cwt_ok:
         check(isinstance(cwt.get(ISS), str) and cwt.get(ISS).startswith("https://"), "iss is the registry's https base")
-        check(cwt.get(SUB) == f"urn:xchk:record:{rh}", "sub names the same record as the payload")
+        if file_path is None:
+            check(cwt.get(SUB) == f"urn:xchk:record:{rh}", "sub names the same record as the payload")
+        else:
+            check(cwt.get(SUB) == f"urn:xchk:install:{rh}", "sub names a served file with the same hash as the payload (urn:xchk:install:)")
         check(isinstance(cwt.get(IAT), int) and cwt.get(IAT) > 0, "iat is a positive integer")
     report.update(recordHash=rh, kid=kid, iss=cwt.get(ISS) if cwt_ok else None,
                   payloadLocation=prot.get(PAYLOAD_LOCATION), preimageContentType=prot.get(PREIMAGE_TYPE),
@@ -222,6 +232,18 @@ def verify(path: str, bundle_path=None, keys_path=None) -> dict:
         good = [src for src, s, pub in cands if s != "revoked" and not rv and ed25519_verify(pub, tbs, sig)]
         check(good, "Ed25519 signature over the Sig_structure verifies" + (f" (key from {good[0]})" if good else ""))
 
+    if file_path is not None:
+        try:
+            with open(file_path, "rb") as f:
+                digest = hashlib.sha256(f.read()).hexdigest()
+        except OSError as e:
+            digest = None
+            check(False, f"the file reads: {e}")
+        if digest is not None:
+            check(digest == rh, "payload equals sha256 of the file's bytes")
+        check(bundle is None, "a file's statement is checked against the file, not a receipt bundle")
+        report["file"] = file_path
+
     if bundle is not None:
         check(bundle.get("recordHash") == rh, "payload equals the bundle's recordHash")
         rec = bundle.get("record")
@@ -237,7 +259,7 @@ def main(argv) -> int:
     args, opts = [], {}
     it = iter(argv)
     for a in it:
-        if a in ("--bundle", "--keys"):
+        if a in ("--bundle", "--keys", "--file"):
             opts[a] = next(it, None)
             if opts[a] is None:
                 print(f"{a} needs a file", file=sys.stderr)
@@ -252,13 +274,14 @@ def main(argv) -> int:
     if len(args) != 1:
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return 2
-    r = verify(args[0], opts.get("--bundle"), opts.get("--keys"))
+    r = verify(args[0], opts.get("--bundle"), opts.get("--keys"), opts.get("--file"))
     if opts.get("--json"):
         print(json.dumps(r, indent=2))
     else:
         for c in r["checks"]:
             print(("  ok   " if c["ok"] else "  FAIL ") + c["check"])
-        print(("VERIFIED: " if r["ok"] else "NOT VERIFIED: ") + f"statement over record {r.get('recordHash', '?')}")
+        what = f"file {r['file']} with sha256" if r.get("file") else "record"
+        print(("VERIFIED: " if r["ok"] else "NOT VERIFIED: ") + f"statement over {what} {r.get('recordHash', '?')}")
     return 0 if r["ok"] else 1
 
 

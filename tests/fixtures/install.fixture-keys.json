@@ -1,0 +1,19 @@
+{
+  "keys": [
+    {
+      "keyId": "2c692141167f2c29",
+      "alg": "ed25519",
+      "use": [
+        "seal",
+        "identity-binding"
+      ],
+      "status": "active",
+      "notBefore": null,
+      "notAfter": null,
+      "revokedAt": null,
+      "publicKeyRaw": "648Qad8b6qae5r1jnpaKxm0o9wDoPBbKdERo6mu/uwI=",
+      "publicKeySpkiDer": "MCowBQYDK2VwAyEA648Qad8b6qae5r1jnpaKxm0o9wDoPBbKdERo6mu/uwI=",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA648Qad8b6qae5r1jnpaKxm0o9wDoPBbKdERo6mu/uwI=\n-----END PUBLIC KEY-----\n"
+    }
+  ]
+}

